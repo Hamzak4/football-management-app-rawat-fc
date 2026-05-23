@@ -1,0 +1,6 @@
+{
+  "name": "Rawat FC Hub",
+  "description": "Internal management system for Rawat FC players and coach with live countdowns, announcements, tournament standings, group chat, training logs, match schedules, and roster management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
