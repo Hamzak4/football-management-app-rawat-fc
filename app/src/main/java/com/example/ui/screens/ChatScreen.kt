@@ -436,6 +436,7 @@ fun ChatScreen() {
                                             val index = ClubRepository.chatMessages.indexOfFirst { it.id == reactingMessageId }
                                             if (index != -1) {
                                                 ClubRepository.chatMessages.removeAt(index)
+                                                ClubRepository.saveAllData()
                                             }
                                             reactingMessageId = null
                                         },

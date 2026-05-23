@@ -16,10 +16,131 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.UUID
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 object ClubRepository {
 
     private val okHttpClient = OkHttpClient()
+
+    private val moshi = Moshi.Builder()
+        .addLast(KotlinJsonAdapterFactory())
+        .build()
+
+    private var appContext: android.content.Context? = null
+
+    fun initialize(context: android.content.Context) {
+        appContext = context.applicationContext
+        val testFile = context.getFileStreamPath("users.json")
+        if (!testFile.exists()) {
+            // First time running, save the default initial presets to local file database
+            saveAllData()
+        } else {
+            // Load existing database data
+            loadAllData()
+        }
+    }
+
+    private fun <T> saveListToFile(context: android.content.Context, fileName: String, list: List<T>, itemType: java.lang.reflect.Type) {
+        try {
+            val adapter = moshi.adapter<List<T>>(itemType)
+            val json = adapter.toJson(list)
+            context.openFileOutput(fileName, android.content.Context.MODE_PRIVATE).use { output ->
+                output.write(json.toByteArray())
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun <T> loadListFromFile(context: android.content.Context, fileName: String, itemType: java.lang.reflect.Type): List<T>? {
+        return try {
+            val file = context.getFileStreamPath(fileName)
+            if (!file.exists()) return null
+            val json = context.openFileInput(fileName).bufferedReader().use { it.readText() }
+            val adapter = moshi.adapter<List<T>>(itemType)
+            adapter.fromJson(json)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun saveAllData() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "users.json", users.toList(), Types.newParameterizedType(List::class.java, UserProfile::class.java))
+            saveListToFile(context, "matches.json", matches.toList(), Types.newParameterizedType(List::class.java, MatchFixture::class.java))
+            saveListToFile(context, "trainings.json", trainings.toList(), Types.newParameterizedType(List::class.java, TrainingSession::class.java))
+            saveListToFile(context, "chat_groups.json", chatGroups.toList(), Types.newParameterizedType(List::class.java, ChatGroup::class.java))
+            saveListToFile(context, "chat_messages.json", chatMessages.toList(), Types.newParameterizedType(List::class.java, ChatMessage::class.java))
+            saveListToFile(context, "announcements.json", announcements.toList(), Types.newParameterizedType(List::class.java, Announcement::class.java))
+            saveListToFile(context, "media_gallery.json", mediaGallery.toList(), Types.newParameterizedType(List::class.java, MediaItem::class.java))
+            saveListToFile(context, "league_standings.json", leagueStandings.toList(), Types.newParameterizedType(List::class.java, TeamStanding::class.java))
+            saveListToFile(context, "tournament_bracket.json", tournamentBracket.toList(), Types.newParameterizedType(List::class.java, BracketMatch::class.java))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun loadAllData() {
+        val context = appContext ?: return
+        try {
+            val loadedUsers = loadListFromFile<UserProfile>(context, "users.json", Types.newParameterizedType(List::class.java, UserProfile::class.java))
+            val loadedMatches = loadListFromFile<MatchFixture>(context, "matches.json", Types.newParameterizedType(List::class.java, MatchFixture::class.java))
+            val loadedTrainings = loadListFromFile<TrainingSession>(context, "trainings.json", Types.newParameterizedType(List::class.java, TrainingSession::class.java))
+            val loadedChatGroups = loadListFromFile<ChatGroup>(context, "chat_groups.json", Types.newParameterizedType(List::class.java, ChatGroup::class.java))
+            val loadedChatMessages = loadListFromFile<ChatMessage>(context, "chat_messages.json", Types.newParameterizedType(List::class.java, ChatMessage::class.java))
+            val loadedAnnouncements = loadListFromFile<Announcement>(context, "announcements.json", Types.newParameterizedType(List::class.java, Announcement::class.java))
+            val loadedMedia = loadListFromFile<MediaItem>(context, "media_gallery.json", Types.newParameterizedType(List::class.java, MediaItem::class.java))
+            val loadedStandings = loadListFromFile<TeamStanding>(context, "league_standings.json", Types.newParameterizedType(List::class.java, TeamStanding::class.java))
+            val loadedBracket = loadListFromFile<BracketMatch>(context, "tournament_bracket.json", Types.newParameterizedType(List::class.java, BracketMatch::class.java))
+
+            if (loadedUsers != null && loadedUsers.isNotEmpty()) {
+                users.clear()
+                users.addAll(loadedUsers)
+                val savedActiveUser = loadedUsers.find { it.role == UserRole.CAPTAIN } ?: loadedUsers.firstOrNull()
+                if (savedActiveUser != null) {
+                    currentUser.value = savedActiveUser
+                }
+            }
+            if (loadedMatches != null && loadedMatches.isNotEmpty()) {
+                matches.clear()
+                matches.addAll(loadedMatches)
+            }
+            if (loadedTrainings != null && loadedTrainings.isNotEmpty()) {
+                trainings.clear()
+                trainings.addAll(loadedTrainings)
+            }
+            if (loadedChatGroups != null && loadedChatGroups.isNotEmpty()) {
+                chatGroups.clear()
+                chatGroups.addAll(loadedChatGroups)
+            }
+            if (loadedChatMessages != null && loadedChatMessages.isNotEmpty()) {
+                chatMessages.clear()
+                chatMessages.addAll(loadedChatMessages)
+            }
+            if (loadedAnnouncements != null && loadedAnnouncements.isNotEmpty()) {
+                announcements.clear()
+                announcements.addAll(loadedAnnouncements)
+            }
+            if (loadedMedia != null && loadedMedia.isNotEmpty()) {
+                mediaGallery.clear()
+                mediaGallery.addAll(loadedMedia)
+            }
+            if (loadedStandings != null && loadedStandings.isNotEmpty()) {
+                leagueStandings.clear()
+                leagueStandings.addAll(loadedStandings)
+            }
+            if (loadedBracket != null && loadedBracket.isNotEmpty()) {
+                tournamentBracket.clear()
+                tournamentBracket.addAll(loadedBracket)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     // ----------------------------------------------------
     // ACTIVE SESSION STATE
@@ -501,6 +622,7 @@ object ClubRepository {
             )
             users.add(newUser)
             currentUser.value = newUser
+            saveAllData()
             true
         }
     }
@@ -533,6 +655,7 @@ object ClubRepository {
             isPinned = false
         )
         announcements.add(0, newAnn)
+        saveAllData()
         broadcastSystemNotification("📢 Announcement: $title")
     }
 
@@ -548,6 +671,7 @@ object ClubRepository {
             status = MatchStatus.UPCOMING
         )
         matches.add(newMatch)
+        saveAllData()
         broadcastSystemNotification("🏆 Match Added: vs $opponent on $date")
     }
 
@@ -565,6 +689,7 @@ object ClubRepository {
             attendance = attendMap
         )
         trainings.add(0, newSession)
+        saveAllData()
         broadcastSystemNotification("🏃 Training Scheduled: $title ($date)")
     }
 
@@ -575,6 +700,7 @@ object ClubRepository {
             val newAttend = s.attendance.toMutableMap()
             newAttend[userId] = status
             trainings[index] = s.copy(attendance = newAttend)
+            saveAllData()
         }
     }
 
@@ -589,6 +715,7 @@ object ClubRepository {
             date = "May 23, 2026"
         )
         mediaGallery.add(0, newItem)
+        saveAllData()
         broadcastSystemNotification("🖼️ Media Uploaded: $title")
     }
 
@@ -607,6 +734,7 @@ object ClubRepository {
             isImage = imagePreset != null
         )
         chatMessages.add(newMessage)
+        saveAllData()
 
         // Update group last message summary
         val gIndex = chatGroups.indexOfFirst { it.id == groupId }
@@ -658,6 +786,7 @@ object ClubRepository {
                 )
             }
             broadcastSystemNotification("💬 New Message from ${responder.name}")
+            saveAllData()
         }
     }
 
@@ -696,6 +825,7 @@ object ClubRepository {
         if (index != -1) {
             val msg = chatMessages[index]
             chatMessages[index] = msg.copy(isPinned = isPin)
+            saveAllData()
             broadcastSystemNotification(if (isPin) "📌 Message Pinned" else "📌 Message Unpinned")
         }
     }
@@ -716,6 +846,7 @@ object ClubRepository {
                 reactions.add(MessageReaction(emoji, 1, listOf(userId)))
             }
             chatMessages[index] = msg.copy(reactions = reactions)
+            saveAllData()
         }
     }
 
