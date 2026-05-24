@@ -489,7 +489,7 @@ fun AdminPanelScreen() {
                                                 val index = ClubRepository.users.indexOfFirst { it.id == pending.id }
                                                 if (index != -1) {
                                                     ClubRepository.users[index] = updated
-                                                    ClubRepository.saveAllData()
+                                                    ClubRepository.saveUsers()
                                                     ClubRepository.broadcastSystemNotification("✅ Approved ${pending.name}")
                                                 }
                                             },
@@ -511,7 +511,7 @@ fun AdminPanelScreen() {
                                                 val index = ClubRepository.users.indexOfFirst { it.id == pending.id }
                                                 if (index != -1) {
                                                     ClubRepository.users.removeAt(index)
-                                                    ClubRepository.saveAllData()
+                                                    ClubRepository.saveUsers()
                                                     ClubRepository.broadcastSystemNotification("❌ Rejected ${pending.name}")
                                                 }
                                             },

@@ -43,7 +43,7 @@ fun ProfileScreen() {
             }
             ClubRepository.currentUser.value = updated
             user = updated
-            ClubRepository.saveAllData()
+            ClubRepository.saveUsers()
             ClubRepository.broadcastSystemNotification("👤 Profile Saved Successfully")
         })
     }

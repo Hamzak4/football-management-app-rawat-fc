@@ -42,12 +42,11 @@ object ClubRepository {
     fun initialize(context: android.content.Context) {
         appContext = context.applicationContext
         
-        // Load local fallback cache first
-        val testFile = context.getFileStreamPath("users.json")
-        if (!testFile.exists()) {
+        // Load local fallback cache first to ensure immediate offline capabilities
+        loadAllData()
+        if (users.isEmpty()) {
+            loadInitialPresets()
             saveAllData()
-        } else {
-            loadAllData()
         }
 
         // Initialize Firebase Realtime Database dynamically
@@ -124,6 +123,25 @@ object ClubRepository {
             db.getReference(nodeName).addValueEventListener(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     try {
+                        val existsOnFirebase = snapshot.exists() && snapshot.value != null
+                        if (!existsOnFirebase) {
+                            // Local-first seeding: if Firebase is empty, initialize it with our memory presets
+                            if (isFirebaseReady && !isSyncingFromFirebase) {
+                                when (nodeName) {
+                                    "users_json" -> pushListToFirebase(db, "users_json", users.toList(), Types.newParameterizedType(List::class.java, UserProfile::class.java))
+                                    "matches_json" -> pushListToFirebase(db, "matches_json", matches.toList(), Types.newParameterizedType(List::class.java, MatchFixture::class.java))
+                                    "trainings_json" -> pushListToFirebase(db, "trainings_json", trainings.toList(), Types.newParameterizedType(List::class.java, TrainingSession::class.java))
+                                    "chat_groups_json" -> pushListToFirebase(db, "chat_groups_json", chatGroups.toList(), Types.newParameterizedType(List::class.java, ChatGroup::class.java))
+                                    "chat_messages_json" -> pushListToFirebase(db, "chat_messages_json", chatMessages.toList(), Types.newParameterizedType(List::class.java, ChatMessage::class.java))
+                                    "announcements_json" -> pushListToFirebase(db, "announcements_json", announcements.toList(), Types.newParameterizedType(List::class.java, Announcement::class.java))
+                                    "media_gallery_json" -> pushListToFirebase(db, "media_gallery_json", mediaGallery.toList(), Types.newParameterizedType(List::class.java, MediaItem::class.java))
+                                    "league_standings_json" -> pushListToFirebase(db, "league_standings_json", leagueStandings.toList(), Types.newParameterizedType(List::class.java, TeamStanding::class.java))
+                                    "tournament_bracket_json" -> pushListToFirebase(db, "tournament_bracket_json", tournamentBracket.toList(), Types.newParameterizedType(List::class.java, BracketMatch::class.java))
+                                }
+                            }
+                            return
+                        }
+
                         val json = snapshot.getValue(String::class.java) ?: return
                         if (isSyncingFromFirebase) return
                         
@@ -146,6 +164,9 @@ object ClubRepository {
                                                     currentUser.value = fresh
                                                 }
                                             }
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "users.json", typedList, Types.newParameterizedType(List::class.java, UserProfile::class.java))
+                                            }
                                         }
                                     }
                                     "matches_json" -> {
@@ -153,6 +174,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             matches.clear()
                                             matches.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "matches.json", typedList, Types.newParameterizedType(List::class.java, MatchFixture::class.java))
+                                            }
                                         }
                                     }
                                     "trainings_json" -> {
@@ -160,6 +184,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             trainings.clear()
                                             trainings.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "trainings.json", typedList, Types.newParameterizedType(List::class.java, TrainingSession::class.java))
+                                            }
                                         }
                                     }
                                     "chat_groups_json" -> {
@@ -167,6 +194,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             chatGroups.clear()
                                             chatGroups.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "chat_groups.json", typedList, Types.newParameterizedType(List::class.java, ChatGroup::class.java))
+                                            }
                                         }
                                     }
                                     "chat_messages_json" -> {
@@ -174,6 +204,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             chatMessages.clear()
                                             chatMessages.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "chat_messages.json", typedList, Types.newParameterizedType(List::class.java, ChatMessage::class.java))
+                                            }
                                         }
                                     }
                                     "announcements_json" -> {
@@ -181,6 +214,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             announcements.clear()
                                             announcements.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "announcements.json", typedList, Types.newParameterizedType(List::class.java, Announcement::class.java))
+                                            }
                                         }
                                     }
                                     "media_gallery_json" -> {
@@ -188,6 +224,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             mediaGallery.clear()
                                             mediaGallery.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "media_gallery.json", typedList, Types.newParameterizedType(List::class.java, MediaItem::class.java))
+                                            }
                                         }
                                     }
                                     "league_standings_json" -> {
@@ -195,6 +234,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             leagueStandings.clear()
                                             leagueStandings.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "league_standings.json", typedList, Types.newParameterizedType(List::class.java, TeamStanding::class.java))
+                                            }
                                         }
                                     }
                                     "tournament_bracket_json" -> {
@@ -202,6 +244,9 @@ object ClubRepository {
                                         if (typedList.isNotEmpty()) {
                                             tournamentBracket.clear()
                                             tournamentBracket.addAll(typedList)
+                                            appContext?.let { ctx ->
+                                                saveListToFile(ctx, "tournament_bracket.json", typedList, Types.newParameterizedType(List::class.java, BracketMatch::class.java))
+                                            }
                                         }
                                     }
                                 }
@@ -258,34 +303,133 @@ object ClubRepository {
         }
     }
 
-    fun saveAllData() {
+    fun saveUsers() {
         val context = appContext ?: return
         try {
             saveListToFile(context, "users.json", users.toList(), Types.newParameterizedType(List::class.java, UserProfile::class.java))
-            saveListToFile(context, "matches.json", matches.toList(), Types.newParameterizedType(List::class.java, MatchFixture::class.java))
-            saveListToFile(context, "trainings.json", trainings.toList(), Types.newParameterizedType(List::class.java, TrainingSession::class.java))
-            saveListToFile(context, "chat_groups.json", chatGroups.toList(), Types.newParameterizedType(List::class.java, ChatGroup::class.java))
-            saveListToFile(context, "chat_messages.json", chatMessages.toList(), Types.newParameterizedType(List::class.java, ChatMessage::class.java))
-            saveListToFile(context, "announcements.json", announcements.toList(), Types.newParameterizedType(List::class.java, Announcement::class.java))
-            saveListToFile(context, "media_gallery.json", mediaGallery.toList(), Types.newParameterizedType(List::class.java, MediaItem::class.java))
-            saveListToFile(context, "league_standings.json", leagueStandings.toList(), Types.newParameterizedType(List::class.java, TeamStanding::class.java))
-            saveListToFile(context, "tournament_bracket.json", tournamentBracket.toList(), Types.newParameterizedType(List::class.java, BracketMatch::class.java))
-
             if (isFirebaseReady && !isSyncingFromFirebase) {
                 val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "users_json", users.toList(), Types.newParameterizedType(List::class.java, UserProfile::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveMatches() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "matches.json", matches.toList(), Types.newParameterizedType(List::class.java, MatchFixture::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "matches_json", matches.toList(), Types.newParameterizedType(List::class.java, MatchFixture::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveTrainings() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "trainings.json", trainings.toList(), Types.newParameterizedType(List::class.java, TrainingSession::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "trainings_json", trainings.toList(), Types.newParameterizedType(List::class.java, TrainingSession::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveChatGroups() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "chat_groups.json", chatGroups.toList(), Types.newParameterizedType(List::class.java, ChatGroup::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "chat_groups_json", chatGroups.toList(), Types.newParameterizedType(List::class.java, ChatGroup::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveChatMessages() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "chat_messages.json", chatMessages.toList(), Types.newParameterizedType(List::class.java, ChatMessage::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "chat_messages_json", chatMessages.toList(), Types.newParameterizedType(List::class.java, ChatMessage::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveAnnouncements() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "announcements.json", announcements.toList(), Types.newParameterizedType(List::class.java, Announcement::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "announcements_json", announcements.toList(), Types.newParameterizedType(List::class.java, Announcement::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveMedia() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "media_gallery.json", mediaGallery.toList(), Types.newParameterizedType(List::class.java, MediaItem::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "media_gallery_json", mediaGallery.toList(), Types.newParameterizedType(List::class.java, MediaItem::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveStandings() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "league_standings.json", leagueStandings.toList(), Types.newParameterizedType(List::class.java, TeamStanding::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "league_standings_json", leagueStandings.toList(), Types.newParameterizedType(List::class.java, TeamStanding::class.java))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveBracket() {
+        val context = appContext ?: return
+        try {
+            saveListToFile(context, "tournament_bracket.json", tournamentBracket.toList(), Types.newParameterizedType(List::class.java, BracketMatch::class.java))
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
                 pushListToFirebase(db, "tournament_bracket_json", tournamentBracket.toList(), Types.newParameterizedType(List::class.java, BracketMatch::class.java))
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun saveAllData() {
+        saveUsers()
+        saveMatches()
+        saveTrainings()
+        saveChatGroups()
+        saveChatMessages()
+        saveAnnouncements()
+        saveMedia()
+        saveStandings()
+        saveBracket()
     }
 
     private fun loadAllData() {
@@ -835,7 +979,7 @@ object ClubRepository {
             )
             users.add(newUser)
             currentUser.value = newUser
-            saveAllData()
+            saveUsers()
             true
         }
     }
@@ -868,7 +1012,7 @@ object ClubRepository {
             isPinned = false
         )
         announcements.add(0, newAnn)
-        saveAllData()
+        saveAnnouncements()
         broadcastSystemNotification("📢 Announcement: $title")
     }
 
@@ -884,7 +1028,7 @@ object ClubRepository {
             status = MatchStatus.UPCOMING
         )
         matches.add(newMatch)
-        saveAllData()
+        saveMatches()
         broadcastSystemNotification("🏆 Match Added: vs $opponent on $date")
     }
 
@@ -902,7 +1046,7 @@ object ClubRepository {
             attendance = attendMap
         )
         trainings.add(0, newSession)
-        saveAllData()
+        saveTrainings()
         broadcastSystemNotification("🏃 Training Scheduled: $title ($date)")
     }
 
@@ -913,7 +1057,7 @@ object ClubRepository {
             val newAttend = s.attendance.toMutableMap()
             newAttend[userId] = status
             trainings[index] = s.copy(attendance = newAttend)
-            saveAllData()
+            saveTrainings()
         }
     }
 
@@ -928,7 +1072,7 @@ object ClubRepository {
             date = "May 23, 2026"
         )
         mediaGallery.add(0, newItem)
-        saveAllData()
+        saveMedia()
         broadcastSystemNotification("🖼️ Media Uploaded: $title")
     }
 
@@ -947,7 +1091,7 @@ object ClubRepository {
             isImage = imagePreset != null
         )
         chatMessages.add(newMessage)
-        saveAllData()
+        saveChatMessages()
 
         // Update group last message summary
         val gIndex = chatGroups.indexOfFirst { it.id == groupId }
@@ -957,6 +1101,7 @@ object ClubRepository {
                 lastMessageText = if (imagePreset != null) "[Image] $text" else text,
                 lastMessageTime = "08:19 AM"
             )
+            saveChatGroups()
         }
 
         // Trigger Automated Dynamic Reply after short latency to simulate professional real-time feel
@@ -999,7 +1144,8 @@ object ClubRepository {
                 )
             }
             broadcastSystemNotification("💬 New Message from ${responder.name}")
-            saveAllData()
+            saveChatMessages()
+            saveChatGroups()
         }
     }
 
@@ -1038,7 +1184,7 @@ object ClubRepository {
         if (index != -1) {
             val msg = chatMessages[index]
             chatMessages[index] = msg.copy(isPinned = isPin)
-            saveAllData()
+            saveChatMessages()
             broadcastSystemNotification(if (isPin) "📌 Message Pinned" else "📌 Message Unpinned")
         }
     }
@@ -1059,7 +1205,7 @@ object ClubRepository {
                 reactions.add(MessageReaction(emoji, 1, listOf(userId)))
             }
             chatMessages[index] = msg.copy(reactions = reactions)
-            saveAllData()
+            saveChatMessages()
         }
     }
 

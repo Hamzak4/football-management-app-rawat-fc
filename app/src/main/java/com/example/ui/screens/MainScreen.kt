@@ -436,7 +436,7 @@ fun PendingApprovalScreen(currentUser: UserProfile, onLogout: () -> Unit) {
                                     ClubRepository.users[index] = updated
                                 }
                                 ClubRepository.currentUser.value = updated
-                                ClubRepository.saveAllData()
+                                ClubRepository.saveUsers()
                                 updateFeedback = "Display Name updated successfully!"
                             } else {
                                 updateFeedback = "Name cannot be empty."
