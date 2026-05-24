@@ -399,7 +399,9 @@ fun triggerAdminRegistrationEmail(context: android.content.Context, name: String
         selector = selectorIntent
     }
     try {
-        context.startActivity(android.content.Intent.createChooser(emailIntent, "Send Registration Email..."))
+        val chooser = android.content.Intent.createChooser(emailIntent, "Send Registration Email...")
+        chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(chooser)
     } catch (ex: Exception) {
         ex.printStackTrace()
     }

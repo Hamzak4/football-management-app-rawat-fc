@@ -497,7 +497,9 @@ fun PendingApprovalScreen(currentUser: UserProfile, onLogout: () -> Unit) {
                                     selector = selectorIntent
                                 }
                                 try {
-                                    context.startActivity(android.content.Intent.createChooser(emailIntent, "Send Admin Request..."))
+                                    val chooser = android.content.Intent.createChooser(emailIntent, "Send Admin Request...")
+                                    chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(chooser)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 }

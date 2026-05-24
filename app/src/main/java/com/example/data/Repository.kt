@@ -123,10 +123,10 @@ object ClubRepository {
         for ((nodeName, type) in nodes) {
             db.getReference(nodeName).addValueEventListener(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
-                    val json = snapshot.getValue(String::class.java) ?: return
-                    if (isSyncingFromFirebase) return
-                    
                     try {
+                        val json = snapshot.getValue(String::class.java) ?: return
+                        if (isSyncingFromFirebase) return
+                        
                         val adapter = moshi.adapter<List<Any>>(type)
                         val list = adapter.fromJson(json) ?: return
                         
@@ -135,47 +135,74 @@ object ClubRepository {
                             try {
                                 when (nodeName) {
                                     "users_json" -> {
-                                        users.clear()
-                                        users.addAll(list as List<UserProfile>)
-                                        val active = currentUser.value
-                                        if (active != null) {
-                                            val fresh = (list as List<UserProfile>).find { it.id == active.id }
-                                            if (fresh != null) {
-                                                currentUser.value = fresh
+                                        val typedList = list.filterIsInstance<UserProfile>()
+                                        if (typedList.isNotEmpty()) {
+                                            users.clear()
+                                            users.addAll(typedList)
+                                            val active = currentUser.value
+                                            if (active != null) {
+                                                val fresh = typedList.find { it.id == active.id }
+                                                if (fresh != null) {
+                                                    currentUser.value = fresh
+                                                }
                                             }
                                         }
                                     }
                                     "matches_json" -> {
-                                        matches.clear()
-                                        matches.addAll(list as List<MatchFixture>)
+                                        val typedList = list.filterIsInstance<MatchFixture>()
+                                        if (typedList.isNotEmpty()) {
+                                            matches.clear()
+                                            matches.addAll(typedList)
+                                        }
                                     }
                                     "trainings_json" -> {
-                                        trainings.clear()
-                                        trainings.addAll(list as List<TrainingSession>)
+                                        val typedList = list.filterIsInstance<TrainingSession>()
+                                        if (typedList.isNotEmpty()) {
+                                            trainings.clear()
+                                            trainings.addAll(typedList)
+                                        }
                                     }
                                     "chat_groups_json" -> {
-                                        chatGroups.clear()
-                                        chatGroups.addAll(list as List<ChatGroup>)
+                                        val typedList = list.filterIsInstance<ChatGroup>()
+                                        if (typedList.isNotEmpty()) {
+                                            chatGroups.clear()
+                                            chatGroups.addAll(typedList)
+                                        }
                                     }
                                     "chat_messages_json" -> {
-                                        chatMessages.clear()
-                                        chatMessages.addAll(list as List<ChatMessage>)
+                                        val typedList = list.filterIsInstance<ChatMessage>()
+                                        if (typedList.isNotEmpty()) {
+                                            chatMessages.clear()
+                                            chatMessages.addAll(typedList)
+                                        }
                                     }
                                     "announcements_json" -> {
-                                        announcements.clear()
-                                        announcements.addAll(list as List<Announcement>)
+                                        val typedList = list.filterIsInstance<Announcement>()
+                                        if (typedList.isNotEmpty()) {
+                                            announcements.clear()
+                                            announcements.addAll(typedList)
+                                        }
                                     }
                                     "media_gallery_json" -> {
-                                        mediaGallery.clear()
-                                        mediaGallery.addAll(list as List<MediaItem>)
+                                        val typedList = list.filterIsInstance<MediaItem>()
+                                        if (typedList.isNotEmpty()) {
+                                            mediaGallery.clear()
+                                            mediaGallery.addAll(typedList)
+                                        }
                                     }
                                     "league_standings_json" -> {
-                                        leagueStandings.clear()
-                                        leagueStandings.addAll(list as List<TeamStanding>)
+                                        val typedList = list.filterIsInstance<TeamStanding>()
+                                        if (typedList.isNotEmpty()) {
+                                            leagueStandings.clear()
+                                            leagueStandings.addAll(typedList)
+                                        }
                                     }
                                     "tournament_bracket_json" -> {
-                                        tournamentBracket.clear()
-                                        tournamentBracket.addAll(list as List<BracketMatch>)
+                                        val typedList = list.filterIsInstance<BracketMatch>()
+                                        if (typedList.isNotEmpty()) {
+                                            tournamentBracket.clear()
+                                            tournamentBracket.addAll(typedList)
+                                        }
                                     }
                                 }
                             } catch (e: Exception) {
@@ -276,8 +303,15 @@ object ClubRepository {
 
             if (loadedUsers != null && loadedUsers.isNotEmpty()) {
                 users.clear()
-                users.addAll(loadedUsers)
-                val savedActiveUser = loadedUsers.find { it.role == UserRole.CAPTAIN } ?: loadedUsers.firstOrNull()
+                val verifiedUsers = loadedUsers.map { user ->
+                    if (user.id == "c1" || user.id == "p1" || user.id == "p2" || user.id == "p3" || user.id == "p4" || user.id == "p5" || user.id == "p6" || user.id == "p7") {
+                        user.copy(isApproved = true)
+                    } else {
+                        user
+                    }
+                }
+                users.addAll(verifiedUsers)
+                val savedActiveUser = verifiedUsers.find { it.role == UserRole.CAPTAIN } ?: verifiedUsers.firstOrNull()
                 if (savedActiveUser != null) {
                     currentUser.value = savedActiveUser
                 }
