@@ -55,6 +55,7 @@ fun ProfileContentScreen(userProfile: UserProfile, onProfileUpdated: (UserProfil
     var isEditing by remember { mutableStateOf(false) }
     
     // Editing Text fields
+    var editName by remember { mutableStateOf(userProfile.name) }
     var editBio by remember { mutableStateOf(userProfile.bio) }
     var editPhone by remember { mutableStateOf(userProfile.phoneNumber) }
     var editAge by remember { mutableStateOf(userProfile.age.toString()) }
@@ -111,6 +112,7 @@ fun ProfileContentScreen(userProfile: UserProfile, onProfileUpdated: (UserProfil
                             val parsedAge = editAge.toIntOrNull() ?: userProfile.age
                             val parsedJersey = editJersey.toIntOrNull()
                             val updated = userProfile.copy(
+                                name = editName,
                                 bio = editBio,
                                 phoneNumber = editPhone,
                                 age = parsedAge,
@@ -120,6 +122,7 @@ fun ProfileContentScreen(userProfile: UserProfile, onProfileUpdated: (UserProfil
                             onProfileUpdated(updated)
                             isEditing = false
                         } else {
+                            editName = userProfile.name
                             editBio = userProfile.bio
                             editPhone = userProfile.phoneNumber
                             editAge = userProfile.age.toString()
@@ -162,6 +165,18 @@ fun ProfileContentScreen(userProfile: UserProfile, onProfileUpdated: (UserProfil
 
                     if (isEditing) {
                         // Editable text input fields
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            label = { Text("Display Name/Nickname", fontSize = 11.sp) },
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color(0xFFE50914)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
                         OutlinedTextField(
                             value = editBio,
                             onValueChange = { editBio = it },

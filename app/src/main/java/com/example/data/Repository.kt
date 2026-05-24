@@ -19,6 +19,12 @@ import java.util.UUID
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 
 object ClubRepository {
 
@@ -29,16 +35,164 @@ object ClubRepository {
         .build()
 
     private var appContext: android.content.Context? = null
+    private var firebaseDatabase: FirebaseDatabase? = null
+    private var isFirebaseReady = false
+    private var isSyncingFromFirebase = false
 
     fun initialize(context: android.content.Context) {
         appContext = context.applicationContext
+        
+        // Load local fallback cache first
         val testFile = context.getFileStreamPath("users.json")
         if (!testFile.exists()) {
-            // First time running, save the default initial presets to local file database
             saveAllData()
         } else {
-            // Load existing database data
             loadAllData()
+        }
+
+        // Initialize Firebase Realtime Database dynamically
+        try {
+            val dbUrl = try { BuildConfig.FIREBASE_DATABASE_URL } catch (e: Exception) { "" }
+            val apiKey = try { BuildConfig.FIREBASE_API_KEY } catch (e: Exception) { "" }
+            val projectId = try { BuildConfig.FIREBASE_PROJECT_ID } catch (e: Exception) { "" }
+            val appId = try { BuildConfig.FIREBASE_APP_ID } catch (e: Exception) { "" }
+
+            val isDbUrlValid = !dbUrl.isNullOrBlank() && 
+                    dbUrl != "disabled" && 
+                    !dbUrl.contains("rawatfc-default") && 
+                    !dbUrl.contains("your-app-default")
+
+            if (isDbUrlValid) {
+                val builder = FirebaseOptions.Builder()
+                    .setDatabaseUrl(dbUrl)
+                if (!apiKey.isNullOrBlank() && apiKey != "disabled") builder.setApiKey(apiKey)
+                if (!projectId.isNullOrBlank() && projectId != "disabled") builder.setProjectId(projectId)
+                if (!appId.isNullOrBlank() && appId != "disabled") builder.setApplicationId(appId)
+
+                val options = builder.build()
+                val hasApp = FirebaseApp.getApps(context).isNotEmpty()
+                val firebaseApp = if (!hasApp) {
+                    FirebaseApp.initializeApp(context, options)
+                } else {
+                    FirebaseApp.getInstance()
+                }
+                
+                firebaseDatabase = FirebaseDatabase.getInstance(firebaseApp, dbUrl)
+                isFirebaseReady = true
+                setupFirebaseListeners()
+            } else {
+                val hasApp = FirebaseApp.getApps(context).isNotEmpty()
+                val firebaseApp = if (!hasApp) {
+                    try {
+                        FirebaseApp.initializeApp(context)
+                    } catch (e: Exception) {
+                        null
+                    }
+                } else {
+                    FirebaseApp.getInstance()
+                }
+
+                if (firebaseApp != null) {
+                    firebaseDatabase = FirebaseDatabase.getInstance(firebaseApp)
+                    isFirebaseReady = true
+                    setupFirebaseListeners()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun setupFirebaseListeners() {
+        val db = firebaseDatabase ?: return
+
+        val nodes = mapOf(
+            "users_json" to Types.newParameterizedType(List::class.java, UserProfile::class.java),
+            "matches_json" to Types.newParameterizedType(List::class.java, MatchFixture::class.java),
+            "trainings_json" to Types.newParameterizedType(List::class.java, TrainingSession::class.java),
+            "chat_groups_json" to Types.newParameterizedType(List::class.java, ChatGroup::class.java),
+            "chat_messages_json" to Types.newParameterizedType(List::class.java, ChatMessage::class.java),
+            "announcements_json" to Types.newParameterizedType(List::class.java, Announcement::class.java),
+            "media_gallery_json" to Types.newParameterizedType(List::class.java, MediaItem::class.java),
+            "league_standings_json" to Types.newParameterizedType(List::class.java, TeamStanding::class.java),
+            "tournament_bracket_json" to Types.newParameterizedType(List::class.java, BracketMatch::class.java)
+        )
+
+        val mainHandler = Handler(Looper.getMainLooper())
+
+        for ((nodeName, type) in nodes) {
+            db.getReference(nodeName).addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val json = snapshot.getValue(String::class.java) ?: return
+                    if (isSyncingFromFirebase) return
+                    
+                    try {
+                        val adapter = moshi.adapter<List<Any>>(type)
+                        val list = adapter.fromJson(json) ?: return
+                        
+                        mainHandler.post {
+                            isSyncingFromFirebase = true
+                            try {
+                                when (nodeName) {
+                                    "users_json" -> {
+                                        users.clear()
+                                        users.addAll(list as List<UserProfile>)
+                                        val active = currentUser.value
+                                        if (active != null) {
+                                            val fresh = (list as List<UserProfile>).find { it.id == active.id }
+                                            if (fresh != null) {
+                                                currentUser.value = fresh
+                                            }
+                                        }
+                                    }
+                                    "matches_json" -> {
+                                        matches.clear()
+                                        matches.addAll(list as List<MatchFixture>)
+                                    }
+                                    "trainings_json" -> {
+                                        trainings.clear()
+                                        trainings.addAll(list as List<TrainingSession>)
+                                    }
+                                    "chat_groups_json" -> {
+                                        chatGroups.clear()
+                                        chatGroups.addAll(list as List<ChatGroup>)
+                                    }
+                                    "chat_messages_json" -> {
+                                        chatMessages.clear()
+                                        chatMessages.addAll(list as List<ChatMessage>)
+                                    }
+                                    "announcements_json" -> {
+                                        announcements.clear()
+                                        announcements.addAll(list as List<Announcement>)
+                                    }
+                                    "media_gallery_json" -> {
+                                        mediaGallery.clear()
+                                        mediaGallery.addAll(list as List<MediaItem>)
+                                    }
+                                    "league_standings_json" -> {
+                                        leagueStandings.clear()
+                                        leagueStandings.addAll(list as List<TeamStanding>)
+                                    }
+                                    "tournament_bracket_json" -> {
+                                        tournamentBracket.clear()
+                                        tournamentBracket.addAll(list as List<BracketMatch>)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            } finally {
+                                isSyncingFromFirebase = false
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    // Handled
+                }
+            })
         }
     }
 
@@ -67,6 +221,16 @@ object ClubRepository {
         }
     }
 
+    private fun <T> pushListToFirebase(db: FirebaseDatabase, nodeName: String, list: List<T>, itemType: java.lang.reflect.Type) {
+        try {
+            val adapter = moshi.adapter<List<T>>(itemType)
+            val json = adapter.toJson(list)
+            db.getReference(nodeName).setValue(json)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun saveAllData() {
         val context = appContext ?: return
         try {
@@ -79,6 +243,19 @@ object ClubRepository {
             saveListToFile(context, "media_gallery.json", mediaGallery.toList(), Types.newParameterizedType(List::class.java, MediaItem::class.java))
             saveListToFile(context, "league_standings.json", leagueStandings.toList(), Types.newParameterizedType(List::class.java, TeamStanding::class.java))
             saveListToFile(context, "tournament_bracket.json", tournamentBracket.toList(), Types.newParameterizedType(List::class.java, BracketMatch::class.java))
+
+            if (isFirebaseReady && !isSyncingFromFirebase) {
+                val db = firebaseDatabase ?: return
+                pushListToFirebase(db, "users_json", users.toList(), Types.newParameterizedType(List::class.java, UserProfile::class.java))
+                pushListToFirebase(db, "matches_json", matches.toList(), Types.newParameterizedType(List::class.java, MatchFixture::class.java))
+                pushListToFirebase(db, "trainings_json", trainings.toList(), Types.newParameterizedType(List::class.java, TrainingSession::class.java))
+                pushListToFirebase(db, "chat_groups_json", chatGroups.toList(), Types.newParameterizedType(List::class.java, ChatGroup::class.java))
+                pushListToFirebase(db, "chat_messages_json", chatMessages.toList(), Types.newParameterizedType(List::class.java, ChatMessage::class.java))
+                pushListToFirebase(db, "announcements_json", announcements.toList(), Types.newParameterizedType(List::class.java, Announcement::class.java))
+                pushListToFirebase(db, "media_gallery_json", mediaGallery.toList(), Types.newParameterizedType(List::class.java, MediaItem::class.java))
+                pushListToFirebase(db, "league_standings_json", leagueStandings.toList(), Types.newParameterizedType(List::class.java, TeamStanding::class.java))
+                pushListToFirebase(db, "tournament_bracket_json", tournamentBracket.toList(), Types.newParameterizedType(List::class.java, BracketMatch::class.java))
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -603,7 +780,7 @@ object ClubRepository {
     // ACTIONS & CONTROLS
     // ----------------------------------------------------
 
-    fun loginSimulated(email: String, role: UserRole): Boolean {
+    fun loginSimulated(email: String, role: UserRole, providedName: String = ""): Boolean {
         val existing = users.find { it.email.equals(email, ignoreCase = true) }
         return if (existing != null) {
             currentUser.value = existing
@@ -611,14 +788,16 @@ object ClubRepository {
         } else {
             // Create user dynamically
             val shortName = email.substringBefore("@").replaceFirstChar { it.uppercase() }
+            val finalName = if (providedName.isNotBlank()) providedName else "$shortName Khan"
             val newUser = UserProfile(
                 id = UUID.randomUUID().toString(),
-                name = "$shortName Khan",
+                name = finalName,
                 email = email,
                 role = role,
                 jerseyNumber = (11..99).random(),
                 position = PlayerPosition.values().random(),
-                bio = "Newly onboarded Rawat FC squadron member."
+                bio = "Newly onboarded Rawat FC squadron member.",
+                isApproved = false
             )
             users.add(newUser)
             currentUser.value = newUser

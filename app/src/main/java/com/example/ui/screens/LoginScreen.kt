@@ -35,9 +35,10 @@ import com.example.data.UserRole
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var email by remember { mutableStateOf("hamza@rawatfc.com") }
     var password by remember { mutableStateOf("••••••••") }
-    var selectedRole by remember { mutableStateOf(UserRole.CAPTAIN) }
+    var selectedRole by remember { mutableStateOf(UserRole.PLAYER) }
     var isSignUp by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -205,7 +206,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            val roles = listOf(UserRole.PLAYER, UserRole.CAPTAIN, UserRole.COACH)
+                            val roles = listOf(UserRole.PLAYER, UserRole.ADMIN)
                             roles.forEach { role ->
                                 val isSelected = selectedRole == role
                                 Box(
@@ -243,8 +244,16 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             if (email.isEmpty() || (isSignUp && name.isEmpty())) {
                                 feedbackMessage = "Please fulfill all required fields."
                             } else {
-                                val ok = ClubRepository.loginSimulated(email, selectedRole)
+                                val isBrandNew = ClubRepository.users.none { it.email.equals(email, ignoreCase = true) }
+                                val ok = ClubRepository.loginSimulated(
+                                    email = email,
+                                    role = selectedRole,
+                                    providedName = if (isSignUp) name else ""
+                                )
                                 if (ok) {
+                                    if (isSignUp && selectedRole == UserRole.ADMIN && isBrandNew) {
+                                        triggerAdminRegistrationEmail(context, name, email)
+                                    }
                                     onLoginSuccess()
                                 }
                             }
@@ -365,3 +374,34 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         }
     }
 }
+
+fun triggerAdminRegistrationEmail(context: android.content.Context, name: String, email: String) {
+    val selectorIntent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+        data = android.net.Uri.parse("mailto:")
+    }
+    val emailIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf("hamxak441@gmail.com"))
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "Rawat FC Admin Registration: $name")
+        val bodyText = """
+            Hello Head Admin,
+
+            A new Admin registration request has been submitted for Rawat FC.
+
+            Name: $name
+            Email: $email
+
+            Please review and approve this player/admin profile request inside the Admin Management Dashboard to authorize full team access.
+
+            Best regards,
+            Rawat FC Security Bot
+        """.trimIndent()
+        putExtra(android.content.Intent.EXTRA_TEXT, bodyText)
+        selector = selectorIntent
+    }
+    try {
+        context.startActivity(android.content.Intent.createChooser(emailIntent, "Send Registration Email..."))
+    } catch (ex: Exception) {
+        ex.printStackTrace()
+    }
+}
+

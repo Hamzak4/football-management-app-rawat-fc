@@ -70,7 +70,7 @@ fun AdminPanelScreen() {
     }
 
     // Dynamic Admin Sections
-    var expandedSection by remember { mutableStateOf("MATCH") } // "MATCH", "TRAN", "ANNC"
+    var expandedSection by remember { mutableStateOf("MATCH") } // "MATCH", "TRAN", "ANNC", "APPROVALS"
 
     LazyColumn(
         modifier = Modifier
@@ -100,6 +100,7 @@ fun AdminPanelScreen() {
 
         // Section Selectors Row
         item {
+            val pendingCount = ClubRepository.users.count { !it.isApproved }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -107,7 +108,12 @@ fun AdminPanelScreen() {
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("MATCH" to "Add Match", "TRAN" to "Add Training", "ANNC" to "Add Notice").forEach { sec ->
+                listOf(
+                    "MATCH" to "Match",
+                    "TRAN" to "Training",
+                    "ANNC" to "Notice",
+                    "APPROVALS" to "Approvals ($pendingCount)"
+                ).forEach { sec ->
                     val isChosen = expandedSection == sec.first
                     Box(
                         modifier = Modifier
@@ -117,7 +123,7 @@ fun AdminPanelScreen() {
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(sec.second, color = if (isChosen) Color.White else Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(sec.second, color = if (isChosen) Color.White else Color.White.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -379,6 +385,151 @@ fun AdminPanelScreen() {
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("BROADCAST TO ENTIRE TEAM", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+            "APPROVALS" -> {
+                val pendingUsers = ClubRepository.users.filter { !it.isApproved }
+                if (pendingUsers.isEmpty()) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF111111)),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VerifiedUser,
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Text(
+                                    text = "No Pending Approvals",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "All registered players and admins have been fully authorized to access the club roster.",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 11.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    pendingUsers.forEach { pending ->
+                        item(key = pending.id) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF181111)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = pending.name,
+                                                color = Color.White,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = pending.email,
+                                                color = Color.White.copy(alpha = 0.6f),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    if (pending.role == UserRole.ADMIN) Color(0xFFE50914) else Color(
+                                                        0xFF2196F3
+                                                    ), RoundedCornerShape(4.dp)
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = pending.role.name,
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                val updated = pending.copy(isApproved = true)
+                                                val index = ClubRepository.users.indexOfFirst { it.id == pending.id }
+                                                if (index != -1) {
+                                                    ClubRepository.users[index] = updated
+                                                    ClubRepository.saveAllData()
+                                                    ClubRepository.broadcastSystemNotification("✅ Approved ${pending.name}")
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                                            shape = RoundedCornerShape(6.dp),
+                                            contentPadding = PaddingValues(vertical = 6.dp),
+                                            modifier = Modifier
+                                                .weight(1.5f)
+                                                .height(32.dp)
+                                        ) {
+                                            Text(
+                                                text = "APPROVE SQUAD MEMBER",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Button(
+                                            onClick = {
+                                                val index = ClubRepository.users.indexOfFirst { it.id == pending.id }
+                                                if (index != -1) {
+                                                    ClubRepository.users.removeAt(index)
+                                                    ClubRepository.saveAllData()
+                                                    ClubRepository.broadcastSystemNotification("❌ Rejected ${pending.name}")
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                                            shape = RoundedCornerShape(6.dp),
+                                            contentPadding = PaddingValues(vertical = 6.dp),
+                                            modifier = Modifier
+                                                .weight(0.5f)
+                                                .height(32.dp)
+                                        ) {
+                                            Text(
+                                                text = "REJECT",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

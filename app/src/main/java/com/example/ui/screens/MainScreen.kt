@@ -20,6 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextAlign
+import kotlinx.coroutines.delay
 import com.example.data.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,6 +34,11 @@ fun MainScreen(onLogout: () -> Unit) {
     val currentNotification = ClubRepository.currentNotification.value
     val currentUser = ClubRepository.currentUser.value
     val isCoachOrAdmin = currentUser?.role == UserRole.COACH || currentUser?.role == UserRole.ADMIN
+
+    if (currentUser != null && !currentUser.isApproved) {
+        PendingApprovalScreen(currentUser = currentUser, onLogout = onLogout)
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -292,6 +301,224 @@ fun MainScreen(onLogout: () -> Unit) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun PendingApprovalScreen(currentUser: UserProfile, onLogout: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var editName by remember { mutableStateOf(currentUser.name) }
+    var updateFeedback by remember { mutableStateOf<String?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Elegant badge
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(Color(0xFFE50914).copy(alpha = 0.1f), CircleShape)
+                    .border(1.dp, Color(0xFFE50914).copy(alpha = 0.3f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = Color(0xFFE50914),
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "ACCESS RESTRICTED",
+                color = Color(0xFFE50914),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Membership Access Pending",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "To protect Rawat FC team privacy, your squad profile must be authorized by an executive administrator before you can join chats or view training scheduled details.",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp),
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Interactive info block
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111111)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "YOUR PROFILE INFORMATION",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    // Display Fields
+                    Column {
+                        Text("Linked Email Address", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                        Text(currentUser.email, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Column {
+                        Text("Requested Access Role", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                        Text(currentUser.role.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Editable Name field! ("both users can update their names")
+                    Column {
+                        Text("Edit Display Name", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, modifier = Modifier.padding(bottom = 4.dp))
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            placeholder = { Text("Enter your full name") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFFE50914),
+                                containerColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (editName.isNotBlank()) {
+                                val updated = currentUser.copy(name = editName)
+                                // Update in users array
+                                val index = ClubRepository.users.indexOfFirst { it.id == currentUser.id }
+                                if (index != -1) {
+                                    ClubRepository.users[index] = updated
+                                }
+                                ClubRepository.currentUser.value = updated
+                                ClubRepository.saveAllData()
+                                updateFeedback = "Display Name updated successfully!"
+                            } else {
+                                updateFeedback = "Name cannot be empty."
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("UPDATE PROFILE NAME", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    if (updateFeedback != null) {
+                        Text(
+                            text = updateFeedback!!,
+                            color = if (updateFeedback!!.contains("successfully")) Color(0xFF4CAF50) else Color(0xFFE50914),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        LaunchedEffect(updateFeedback) {
+                            delay(4000)
+                            updateFeedback = null
+                        }
+                    }
+
+                    if (currentUser.role == UserRole.ADMIN) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                        Text(
+                            text = "Admin setup requires email dispatch verification:",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 11.sp
+                        )
+                        Button(
+                            onClick = {
+                                val selectorIntent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                                    data = android.net.Uri.parse("mailto:")
+                                }
+                                val emailIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf("hamxak441@gmail.com"))
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Rawat FC Admin Registration Request: ${editName}")
+                                    val bodyText = """
+                                        Hello Head Admin,
+
+                                        I am requesting Admin access for Rawat FC.
+
+                                        Name: ${editName}
+                                        Email: ${currentUser.email}
+
+                                        Please approve my credentials under player/admin approvals section inside the Rawat FC Manager app.
+
+                                        Best,
+                                        ${editName}
+                                    """.trimIndent()
+                                    putExtra(android.content.Intent.EXTRA_TEXT, bodyText)
+                                    selector = selectorIntent
+                                }
+                                try {
+                                    context.startActivity(android.content.Intent.createChooser(emailIntent, "Send Admin Request..."))
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                            modifier = Modifier.fillMaxWidth().border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("DISPATCH VERIFICATION EMAIL", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            TextButton(onClick = {
+                ClubRepository.logout()
+                onLogout()
+            }) {
+                Text("Exit Current Session", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

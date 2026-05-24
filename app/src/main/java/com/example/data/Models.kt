@@ -48,7 +48,8 @@ data class UserProfile(
     val yellowCards: Int = 0,
     val redCards: Int = 0,
     val rating: Float = 7.5f,
-    val profilePic: String = ""
+    val profilePic: String = "",
+    val isApproved: Boolean = true
 )
 
 data class GoalTimeline(
